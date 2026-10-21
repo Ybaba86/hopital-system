@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# Environment and secrets
+.env
+.env.*
+*/.env
+*/.env.*
+!.env.example
+*.txt
+*.docx
+
+# Large files & installers
+*.exe
+*.pdf
+ARCHIVES PROJET/
+
+# OS and IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log

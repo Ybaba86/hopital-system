@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Hospital {
+  id       String    @id @default(uuid())
+  name     String
+  address  String?
+  patients     Patient[]
+  services     Service[]
+  users        User[]
+  pharmacies   Pharmacy[]
+  laboratories Laboratory[]
+}
+
+model Service {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  users      User[]
+}
+
+model Pharmacy {
+  id         String     @id @default(uuid())
+  name       String
+  hospitalId String?
+  hospital   Hospital?  @relation(fields: [hospitalId], references: [id])
+  users      User[]
+  medicines  Medicine[]
+  sales      Sale[]
+  createdAt  DateTime   @default(now())
+}
+
+model Laboratory {
+  id         String      @id @default(uuid())
+  name       String
+  hospitalId String?
+  hospital   Hospital?   @relation(fields: [hospitalId], references: [id])
+  users      User[]
+  labResults LabResult[]
+  createdAt  DateTime    @default(now())
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String
+  role          Role           @default(MEDECIN)
+  hospitalId    String?
+  serviceId     String?
+  pharmacyId    String?
+  laboratoryId  String?
+  createdAt     DateTime       @default(now())
+  appointments  Appointment[]  @relation("DoctorAppointments")
+  consultations Consultation[] @relation("DoctorConsultations")
+  labResults    LabResult[]    @relation("DoctorLabResults")
+  availabilities DoctorAvailability[] @relation("DoctorAvailabilities")
+  hospital      Hospital?      @relation(fields: [hospitalId], references: [id])
+  service       Service?       @relation(fields: [serviceId], references: [id])
+  pharmacy      Pharmacy?      @relation(fields: [pharmacyId], references: [id])
+  laboratory    Laboratory?    @relation(fields: [laboratoryId], references: [id])
+}
+
+model Patient {
+  id               String            @id @default(uuid())
+  uniqueNumber     String            @unique
+  firstName        String
+  lastName         String
+  birthDate        DateTime?
+  phone            String?
+  email            String?
+  bloodGroup       String?
+  allergies        String?
+  medicalHistory   String?
+  familyHistory    String?
+  insurance        String?
+  password         String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  hospitalId       String?
+  appointments     Appointment[]
+  consultations    Consultation[]
+  hospitalizations Hospitalization[]
+  labResults       LabResult[]
+  hospital         Hospital?         @relation(fields: [hospitalId], references: [id])
+  payments         Payment[]
+  queueTickets     QueueTicket[]
+}
+
+model Consultation {
+  id            String         @id @default(uuid())
+  date          DateTime       @default(now())
+  symptoms      String?
+  diagnosis     String?
+  treatment     String?
+  sickLeave     Boolean?       @default(false)
+  referralNote  String?
+  patientId     String
+  doctorId      String
+  createdAt     DateTime       @default(now())
+  doctor        User           @relation("DoctorConsultations", fields: [doctorId], references: [id])
+  patient       Patient        @relation(fields: [patientId], references: [id])
+  prescriptions Prescription[]
+}
+
+model Prescription {
+  id             String       @id @default(uuid())
+  type           String
+  content        String
+  qrCode         String       @unique
+  consultationId String
+  createdAt      DateTime     @default(now())
+  status         String       @default("active")
+  payments       Payment[]
+  consultation   Consultation @relation(fields: [consultationId], references: [id])
+  sale           Sale?
+}
+
+model LabResult {
+  id             String   @id @default(uuid())
+  prescriptionId String
+  result         String?
+  validatedBy    String?
+  status         String   @default("pending")
+  category       String   @default("BIOLOGY")
+  createdAt      DateTime @default(now())
+  patientId      String
+  doctorId       String
+  laboratoryId   String?
+  doctorNotes    String?
+  fileUrl        String?
+  doctor         User        @relation("DoctorLabResults", fields: [doctorId], references: [id])
+  patient        Patient     @relation(fields: [patientId], references: [id])
+  laboratory     Laboratory? @relation(fields: [laboratoryId], references: [id])
+}
+
+model Appointment {
+  id            String        @id @default(uuid())
+  date          DateTime
+  status        String        @default("scheduled")
+  patientId     String
+  doctorId      String
+  createdAt     DateTime      @default(now())
+  paymentStatus String        @default("pending")
+  paymentMethod String?       @default("on_site")
+  isEmergency   Boolean       @default(false)
+  isVip         Boolean       @default(false)
+  locationType  String        @default("hospital")
+  homeAddress   String?
+  doctor        User          @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  patient       Patient       @relation(fields: [patientId], references: [id])
+  payments      Payment[]
+  queueTickets  QueueTicket[]
+}
+
+model QueueTicket {
+  id            String       @id @default(uuid())
+  ticketNumber  Int
+  patientId     String
+  appointmentId String?
+  status        String       @default("waiting")
+  isEmergency   Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  queueType     String       @default("consultation")
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  patient       Patient      @relation(fields: [patientId], references: [id])
+}
+
+model Hospitalization {
+  id            String    @id @default(uuid())
+  patientId     String
+  bedId         String?
+  admissionDate DateTime  @default(now())
+  dischargeDate DateTime?
+  reason        String?
+  status        String    @default("active")
+  createdAt     DateTime  @default(now())
+  patient       Patient   @relation(fields: [patientId], references: [id])
+}
+
+model Medicine {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  stock       Int        @default(0)
+  price       Float
+  expiryDate  DateTime?
+  supplier    String?
+  pharmacyId  String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  pharmacy    Pharmacy?  @relation(fields: [pharmacyId], references: [id])
+  sales       SaleItem[]
+}
+
+model Sale {
+  id                String        @id @default(uuid())
+  prescriptionId    String?       @unique
+  totalAmount       Float
+  paymentDate       DateTime      @default(now())
+  status            String        @default("completed")
+  pharmacyId        String?
+  isOverTheCounter  Boolean       @default(false)
+  customerName      String?
+  customerPhone     String?
+  prescription      Prescription? @relation(fields: [prescriptionId], references: [id])
+  pharmacy          Pharmacy?     @relation(fields: [pharmacyId], references: [id])
+  items             SaleItem[]
+}
+
+model SaleItem {
+  id                   String   @id @default(uuid())
+  saleId               String
+  medicineId           String
+  quantity             Int
+  unitPrice            Float
+  total                Float
+  isSubstituted        Boolean  @default(false)
+  originalMedicineName String?
+  medicine             Medicine @relation(fields: [medicineId], references: [id])
+  sale                 Sale     @relation(fields: [saleId], references: [id])
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  amount            Float
+  paymentType       String
+  status            String        @default("completed")
+  description       String?
+  patientId         String?
+  consultationId    String?
+  hospitalizationId String?
+  saleId            String?
+  appointmentId     String?
+  paymentDate       DateTime      @default(now())
+  receiptNumber     String        @unique
+  prescriptionId    String?
+  appointment       Appointment?  @relation(fields: [appointmentId], references: [id])
+  patient           Patient?      @relation(fields: [patientId], references: [id])
+  prescription      Prescription? @relation(fields: [prescriptionId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  MEDECIN
+  INFIRMIER
+  LABORANTIN
+  PHARMACIEN
+  CAISSIER
+}
+
+model DoctorAvailability {
+  id        String   @id @default(uuid())
+  doctorId  String
+  dayOfWeek Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime String   // e.g. "09:00"
+  endTime   String   // e.g. "17:00"
+  doctor    User     @relation("DoctorAvailabilities", fields: [doctorId], references: [id])
+
+  @@unique([doctorId, dayOfWeek])
+}

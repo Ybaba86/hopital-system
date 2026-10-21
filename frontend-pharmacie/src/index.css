@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+  @page {
+    margin: 8mm;
+    size: auto;
+  }
+
+  /* Masquer éléments d'interface non imprimables */
+  nav, header, footer, button, .no-print {
+    display: none !important;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Rendre uniquement la zone imprimable visible */
+  body * {
+    visibility: hidden;
+  }
+
+  .printable-area, .printable-area * {
+    visibility: visible;
+  }
+
+  .printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  .printable-area table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .printable-area th, 
+  .printable-area td {
+    border-color: #cbd5e1 !important;
+  }
+}
+
+/* Ajoute ceci pour être sûr que le fond s'applique partout */
+body {
+  margin: 0;
+  background-color: #f8fafc;
+}
