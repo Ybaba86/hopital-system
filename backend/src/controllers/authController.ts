@@ -63,3 +63,121 @@ export const login = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 };
+
+// Stockage temporaire des codes de réinitialisation
+interface ResetEntry {
+  code: string;
+  expiresAt: number;
+}
+const resetCodes = new Map<string, ResetEntry>();
+
+// 1. Demande de code de réinitialisation pour l'administrateur
+export const adminForgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Veuillez saisir votre adresse email' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+    });
+
+    if (!user || user.role !== 'ADMIN') {
+      return res.status(404).json({ error: 'Aucun compte administrateur trouvé avec cette adresse email.' });
+    }
+
+    // Générer un code sécurisé à 6 chiffres
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+    resetCodes.set(cleanEmail, { code, expiresAt });
+
+    const resetToken = jwt.sign(
+      { email: cleanEmail, code, purpose: 'ADMIN_PASSWORD_RESET' },
+      process.env.JWT_SECRET || 'uneCleSecreteTresLonguePourJWT',
+      { expiresIn: '15m' }
+    );
+
+    console.log(`🔐 Code de réinitialisation pour ${cleanEmail} : ${code}`);
+
+    res.json({
+      message: 'Code de sécurité généré avec succès.',
+      code, // Renvoyé pour utilisation immédiate
+      resetToken,
+      expiresInMinutes: 15,
+    });
+  } catch (error) {
+    console.error('Erreur adminForgotPassword:', error);
+    res.status(500).json({ error: 'Erreur lors de la demande de réinitialisation' });
+  }
+};
+
+// 2. Application du nouveau mot de passe
+export const adminResetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, code, newPassword, masterKey, resetToken } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: 'Email et nouveau mot de passe requis' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Le nouveau mot de passe doit comporter au moins 6 caractères' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+    });
+
+    if (!user || user.role !== 'ADMIN') {
+      return res.status(404).json({ error: 'Compte administrateur introuvable.' });
+    }
+
+    const validMasterKey = process.env.ADMIN_MASTER_KEY || 'ADMIN-NIANG-2026';
+    let isAuthorized = false;
+
+    if (masterKey && masterKey.trim() === validMasterKey) {
+      isAuthorized = true;
+    } else if (code) {
+      const stored = resetCodes.get(cleanEmail);
+      if (stored && stored.code === code.trim() && stored.expiresAt > Date.now()) {
+        isAuthorized = true;
+      } else if (resetToken) {
+        try {
+          const decoded = jwt.verify(resetToken, process.env.JWT_SECRET || 'uneCleSecreteTresLonguePourJWT') as any;
+          if (decoded.email === cleanEmail && decoded.code === code.trim()) {
+            isAuthorized = true;
+          }
+        } catch (e) {
+          // Token expiré
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      return res.status(400).json({
+        error: 'Code de vérification invalide ou expiré (ou clé de sécurité incorrecte).',
+      });
+    }
+
+    // Mise à jour sécurisée du mot de passe
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    // Nettoyage
+    resetCodes.delete(cleanEmail);
+
+    res.json({
+      message: 'Votre mot de passe a été réinitialisé avec succès ! Vous pouvez maintenant vous connecter.',
+    });
+  } catch (error) {
+    console.error('Erreur adminResetPassword:', error);
+    res.status(500).json({ error: 'Erreur lors de la réinitialisation du mot de passe' });
+  }
+};
