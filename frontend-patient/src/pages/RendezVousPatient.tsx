@@ -22,6 +22,17 @@ interface Appointment {
   isPast7Days?: boolean;
   daysRemaining?: number;
   canReschedule?: boolean;
+  queueTicket?: {
+    id: string;
+    ticketNumber: number;
+    status: string;
+  } | null;
+  latestPayment?: {
+    id: string;
+    amount: number;
+    paymentType: string;
+    status: string;
+  } | null;
 }
 
 interface SlotItem {
@@ -127,7 +138,7 @@ export default function RendezVousPatient() {
         paymentType: onlineOperator,
         amount: payApt.isVip ? 15000 : 5000,
       });
-      toast.success("Paiement validé avec succès ! Reçu et ticket générés.");
+      toast.success("Paiement en ligne soumis ! En attente de validation par la caisse.", { duration: 4500 });
       setPayApt(null);
       fetchAppointments();
     } catch (error: any) {
@@ -164,11 +175,14 @@ export default function RendezVousPatient() {
   };
 
   const getPaymentBadge = (status: string) => {
-    const baseStyles = "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider";
+    const baseStyles = "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border";
     if (status === 'completed' || status === 'paid' || status === 'payé') {
-      return `${baseStyles} bg-green-100 text-green-700 border border-green-200`;
+      return `${baseStyles} bg-emerald-100 text-emerald-800 border-emerald-300`;
     }
-    return `${baseStyles} bg-amber-100 text-amber-700 border border-amber-200`;
+    if (status === 'pending_confirmation') {
+      return `${baseStyles} bg-amber-100 text-amber-800 border-amber-300`;
+    }
+    return `${baseStyles} bg-slate-100 text-slate-700 border-slate-300`;
   };
 
   const generateReceipt = (apt: Appointment) => {
@@ -313,14 +327,27 @@ export default function RendezVousPatient() {
                       </button>
                     )}
 
-                    {/* Bouton Payer en ligne si en attente */}
-                    {!isPaid && apt.status !== 'cancelled' && (
-                      <button
-                        onClick={() => setPayApt(apt)}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-200 transition-all active:scale-95"
-                      >
-                        <CreditCard size={15} /> Payer en ligne
-                      </button>
+                    {/* Ticket de file d'attente officiel si payé et généré */}
+                    {isPaid && apt.queueTicket && (
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black shadow-sm" title="Votre numéro de passage chez le médecin">
+                        🎟️ Ticket #{apt.queueTicket.ticketNumber}
+                      </span>
+                    )}
+
+                    {/* État de paiement : En attente de validation caisse ou Bouton Payer en ligne */}
+                    {apt.paymentStatus === 'pending_confirmation' ? (
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold animate-pulse" title="Paiement en ligne soumis, en attente de vérification par la caisse">
+                        ⏳ Validation caisse en cours...
+                      </span>
+                    ) : (
+                      !isPaid && apt.status !== 'cancelled' && (
+                        <button
+                          onClick={() => setPayApt(apt)}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-200 transition-all active:scale-95"
+                        >
+                          <CreditCard size={15} /> Payer en ligne
+                        </button>
+                      )
                     )}
 
                     {/* Règle des 7 jours : Si la consultation n'est pas arrivée à 7 jours, reprogrammation possible. Sinon (> 7 jours), nouveau paiement requis */}
@@ -332,7 +359,7 @@ export default function RendezVousPatient() {
                           </span>
                           <button
                             onClick={() => setPayApt(apt)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-200 transition-all active:scale-95"
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-200 transition-all active:scale-95"
                             title="Le délai de 7 jours est dépassé. Veuillez effectuer un nouveau paiement pour réactiver la consultation."
                           >
                             <CreditCard size={14} /> Nouveau paiement
@@ -365,7 +392,11 @@ export default function RendezVousPatient() {
                     )}
 
                     <span className={getPaymentBadge(apt.paymentStatus)}>
-                      {isPaid ? 'Payé' : 'Paiement en attente'}
+                      {apt.paymentStatus === 'pending_confirmation'
+                        ? 'En attente caisse'
+                        : isPaid
+                        ? 'Payé'
+                        : 'Paiement en attente'}
                     </span>
 
                     <span className={getStatusBadge(isMissed ? 'Non présenté / Expiré' : apt.status)}>
@@ -561,6 +592,12 @@ export default function RendezVousPatient() {
                     💳 CARTE
                   </button>
                 </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                  ℹ️ <strong>Processus :</strong> Dès que vous validez, la caisse de l'hôpital confirme la réception de votre paiement. Votre ticket d'attente officiel et votre reçu seront instantanément activés.
+                </p>
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-slate-100">

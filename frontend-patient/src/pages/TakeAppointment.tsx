@@ -160,7 +160,7 @@ export default function TakeAppointment() {
             paymentType: onlineOperator,
             amount: isVip ? 15000 : 5000,
           });
-          toast.success("Rendez-vous programmé et payé en ligne avec succès !");
+          toast.success("Rendez-vous créé ! Paiement en ligne soumis, en attente de confirmation par la caisse.", { duration: 4000 });
         } catch (payErr) {
           toast.success("Rendez-vous créé ! Le paiement en ligne peut être finalisé dans 'Mes rendez-vous'.");
         }
@@ -516,6 +516,9 @@ export default function TakeAppointment() {
                   <span>Montant de la consultation :</span>
                   <span className="text-sm font-black">{isVip ? '15 000 FCFA (Tarif VIP)' : '5 000 FCFA'}</span>
                 </div>
+                <p className="text-[11px] text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 font-medium">
+                  ℹ️ <strong>Processus :</strong> Dès réception de votre paiement en ligne, la caisse de l'hôpital le valide et votre ticket d'attente officiel pour le médecin est activé.
+                </p>
               </div>
             )}
           </div>

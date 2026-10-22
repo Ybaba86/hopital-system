@@ -11,7 +11,9 @@ import {
   markAsPaidAndCreateTicket,
   getAvailableSlots,
   rescheduleAppointment,
-  payOnlineAppointment
+  payOnlineAppointment,
+  confirmOnlinePayment,
+  rejectOnlinePayment
 } from '../controllers/appointmentController';
 import { authPatient } from '../middleware/authPatient';
 
@@ -33,5 +35,7 @@ router.put('/:id', updateAppointment);
 router.delete('/:id', deleteAppointment);
 router.get('/pending-payments', getPendingPayments);
 router.post('/pay', markAsPaidAndCreateTicket);
+router.post('/confirm-online-payment', confirmOnlinePayment);
+router.post('/reject-online-payment', rejectOnlinePayment);
 
 export default router;

@@ -27,7 +27,7 @@ import doctorRoutes from './routes/doctorRoutes';
 import { patientLogin } from './controllers/patientAuthController';
 import { authPatient } from './middleware/authPatient';
 import { getPatientProfile, getPatientAppointments, getPatientPrescriptions, getPatientLabResults } from './controllers/patientDataController';
-import { getPendingPayments, markAsPaidAndCreateTicket } from './controllers/appointmentController';
+import { getPendingPayments, markAsPaidAndCreateTicket, confirmOnlinePayment, rejectOnlinePayment } from './controllers/appointmentController';
 
 const app = express();
 
@@ -49,6 +49,8 @@ app.use('/api/patients', patientRoutes);
 // === ROUTES CAISSE (à mettre AVANT le router appointments) ===
 app.get('/api/appointments/pending-payments', getPendingPayments);
 app.post('/api/appointments/pay', markAsPaidAndCreateTicket);
+app.post('/api/appointments/confirm-online-payment', confirmOnlinePayment);
+app.post('/api/appointments/reject-online-payment', rejectOnlinePayment);
 
 // Routes restantes
 app.use('/api/appointments', appointmentRoutes);

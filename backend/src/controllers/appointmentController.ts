@@ -230,9 +230,9 @@ const rescheduleAppointment = async (req: Request, res: Response) => {
   }
 };
 
-// ====================== PAIEMENT EN LIGNE ======================
+// ====================== PAIEMENT EN LIGNE (PAR LE PATIENT) ======================
 const payOnlineAppointment = async (req: Request, res: Response) => {
-  const { appointmentId, paymentType = 'wave', amount = 5000 } = req.body;
+  const { appointmentId, paymentType = 'wave', amount = 5000, transactionRef } = req.body;
   if (!appointmentId) return res.status(400).json({ error: 'appointmentId manquant' });
 
   try {
@@ -249,27 +249,99 @@ const payOnlineAppointment = async (req: Request, res: Response) => {
     const receiptNumber = await generateReceiptNumber();
 
     const result = await prisma.$transaction(async (tx) => {
+      // 1. Enregistrer la transaction en attente de validation
       const payment = await tx.payment.create({
         data: {
           amount: parseFloat(amount) || 5000,
           paymentType: paymentType || 'online',
           patientId: appointment.patientId,
           appointmentId: appointment.id,
-          description: `Paiement en ligne consultation (${paymentType.toUpperCase()})`,
+          description: `Paiement en ligne (${paymentType.toUpperCase()})${transactionRef ? ` - Réf: ${transactionRef}` : ''} - En attente validation caisse`,
           receiptNumber,
-          status: 'completed',
+          status: 'pending', // En attente de vérification par l'agent de caisse
         },
       });
 
+      // 2. Mettre le statut à 'pending_confirmation'
       const updatedAppointment = await tx.appointment.update({
         where: { id: appointmentId },
         data: { 
-          paymentStatus: 'paid', 
+          paymentStatus: 'pending_confirmation', 
           paymentMethod: 'online',
-          status: appointment.status === 'missed' ? 'scheduled' : appointment.status 
         },
       });
 
+      return { payment, appointment: updatedAppointment };
+    });
+
+    res.json({
+      message: 'Paiement en ligne transmis avec succès ! En attente de confirmation par la caisse.',
+      payment: result.payment,
+      appointment: result.appointment
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erreur lors du paiement en ligne' });
+  }
+};
+
+// ====================== CONFIRMER PAIEMENT EN LIGNE (PAR LA CAISSE) ======================
+const confirmOnlinePayment = async (req: Request, res: Response) => {
+  const { appointmentId, cashierNote } = req.body;
+  if (!appointmentId) return res.status(400).json({ error: 'appointmentId manquant' });
+
+  try {
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        patient: true,
+        doctor: true,
+        payments: { orderBy: { paymentDate: 'desc' }, take: 1 }
+      }
+    });
+
+    if (!appointment) return res.status(404).json({ error: 'Rendez-vous non trouvé' });
+    if (appointment.paymentStatus === 'paid') {
+      return res.status(400).json({ error: 'Ce rendez-vous a déjà été validé' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Mettre à jour le paiement associé en 'completed'
+      const lastPayment = appointment.payments[0];
+      let updatedPayment = lastPayment;
+      if (lastPayment) {
+        updatedPayment = await tx.payment.update({
+          where: { id: lastPayment.id },
+          data: {
+            status: 'completed',
+            description: `${lastPayment.description || 'Paiement en ligne'} (Confirmé par caisse${cashierNote ? ` - Note: ${cashierNote}` : ''})`
+          }
+        });
+      } else {
+        const receiptNumber = await generateReceiptNumber();
+        updatedPayment = await tx.payment.create({
+          data: {
+            amount: appointment.isVip ? 15000 : 5000,
+            paymentType: appointment.paymentMethod || 'online',
+            patientId: appointment.patientId,
+            appointmentId: appointment.id,
+            description: `Paiement en ligne confirmé par la caisse`,
+            receiptNumber,
+            status: 'completed'
+          }
+        });
+      }
+
+      // 2. Mettre à jour le rendez-vous vers 'paid' et activer 'scheduled'
+      const updatedAppointment = await tx.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          paymentStatus: 'paid',
+          status: appointment.status === 'missed' ? 'scheduled' : appointment.status
+        }
+      });
+
+      // 3. Créer ou activer le ticket de file d'attente pour le médecin
       let ticket = await tx.queueTicket.findFirst({ where: { appointmentId } });
       if (!ticket) {
         const today = new Date();
@@ -281,23 +353,74 @@ const payOnlineAppointment = async (req: Request, res: Response) => {
             patientId: appointment.patientId,
             appointmentId: appointment.id,
             status: 'waiting',
-            isEmergency: appointment.isEmergency || false,
-          },
+            isEmergency: appointment.isEmergency || false
+          }
+        });
+      } else {
+        ticket = await tx.queueTicket.update({
+          where: { id: ticket.id },
+          data: { status: 'waiting', updatedAt: new Date() }
         });
       }
 
-      return { payment, ticket, appointment: updatedAppointment };
+      return { payment: updatedPayment, appointment: updatedAppointment, ticket };
     });
 
     res.json({
-      message: 'Paiement en ligne validé avec succès !',
+      message: 'Paiement en ligne validé et ticket de file d\'attente émis avec succès !',
       payment: result.payment,
-      ticket: result.ticket,
-      appointment: result.appointment
+      appointment: result.appointment,
+      ticket: result.ticket
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erreur lors du paiement en ligne' });
+    console.error('Erreur confirmOnlinePayment:', error);
+    res.status(500).json({ error: 'Erreur lors de la confirmation du paiement en ligne' });
+  }
+};
+
+// ====================== REJETER PAIEMENT EN LIGNE (PAR LA CAISSE) ======================
+const rejectOnlinePayment = async (req: Request, res: Response) => {
+  const { appointmentId, reason = "Paiement non reçu" } = req.body;
+  if (!appointmentId) return res.status(400).json({ error: 'appointmentId manquant' });
+
+  try {
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: { payments: { orderBy: { paymentDate: 'desc' }, take: 1 } }
+    });
+
+    if (!appointment) return res.status(404).json({ error: 'Rendez-vous non trouvé' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const lastPayment = appointment.payments[0];
+      if (lastPayment) {
+        await tx.payment.update({
+          where: { id: lastPayment.id },
+          data: {
+            status: 'rejected',
+            description: `${lastPayment.description} - REJETÉ CAISSE: ${reason}`
+          }
+        });
+      }
+
+      const updatedAppointment = await tx.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          paymentStatus: 'pending',
+          paymentMethod: 'on_site'
+        }
+      });
+
+      return updatedAppointment;
+    });
+
+    res.json({
+      message: 'Paiement en ligne rejeté. Le rendez-vous repasse en attente de règlement au guichet.',
+      appointment: result
+    });
+  } catch (error) {
+    console.error('Erreur rejectOnlinePayment:', error);
+    res.status(500).json({ error: 'Erreur lors du rejet du paiement' });
   }
 };
 
@@ -412,25 +535,33 @@ const getAppointmentsByPatient = async (req: Request, res: Response) => {
   try {
     const appointments = await prisma.appointment.findMany({
       where: { patientId },
-      include: { doctor: true },
+      include: { 
+        doctor: true,
+        payments: { orderBy: { paymentDate: 'desc' }, take: 1 },
+        queueTickets: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
       orderBy: { date: 'asc' },
     });
     const checked = await checkAndMarkMissedAppointments(appointments);
     const now = new Date();
-    const enriched = checked.map(apt => {
+    const enriched = checked.map((apt: any) => {
       const aptDate = new Date(apt.date);
       const diffTime = now.getTime() - aptDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
       const isPast7Days = diffDays > 7;
       const daysRemaining = Math.max(0, 7 - diffDays);
       const isRescheduled = apt.status === 'rescheduled';
+      const latestPayment = apt.payments?.[0] || null;
+      const queueTicket = apt.queueTickets?.[0] || null;
       return {
         ...apt,
         diffDays,
         isPast7Days,
         daysRemaining,
         isRescheduled,
-        canReschedule: !isPast7Days && apt.status !== 'completed' && apt.status !== 'cancelled'
+        canReschedule: !isPast7Days && apt.status !== 'completed' && apt.status !== 'cancelled',
+        latestPayment,
+        queueTicket,
       };
     });
     res.json(enriched);
@@ -442,15 +573,18 @@ const getAppointmentsByPatient = async (req: Request, res: Response) => {
 const getPendingPayments = async (req: Request, res: Response) => {
   const hospitalId = req.query.hospitalId as string;
   try {
-    const whereClause: any = { paymentStatus: 'pending' };
+    const whereClause: any = {
+      paymentStatus: { in: ['pending', 'pending_confirmation'] },
+    };
     if (hospitalId) {
       whereClause.patient = { hospitalId };
     }
     const pending = await prisma.appointment.findMany({
       where: whereClause,
       include: {
-        patient: { select: { id: true, firstName: true, lastName: true, phone: true } },
-        doctor: { select: { name: true } },
+        patient: { select: { id: true, firstName: true, lastName: true, phone: true, uniqueNumber: true } },
+        doctor: { select: { id: true, name: true } },
+        payments: { orderBy: { paymentDate: 'desc' }, take: 1 },
       },
       orderBy: { date: 'asc' },
     });
@@ -458,7 +592,7 @@ const getPendingPayments = async (req: Request, res: Response) => {
     const fiveDaysAgo = new Date();
     fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
 
-    // Enrichir avec isFreeRenewal
+    // Enrichir avec isFreeRenewal et latestPayment
     const enrichedPending = await Promise.all(
       pending.map(async (apt) => {
         const lastPaid = await prisma.appointment.findFirst({
@@ -473,6 +607,7 @@ const getPendingPayments = async (req: Request, res: Response) => {
         return {
           ...apt,
           isFreeRenewal: !!lastPaid,
+          latestPayment: apt.payments && apt.payments.length > 0 ? apt.payments[0] : null,
         };
       })
     );
@@ -492,7 +627,7 @@ const markAsPaidAndCreateTicket = async (req: Request, res: Response) => {
   try {
     const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
     if (!appointment) return res.status(404).json({ error: 'Rendez-vous non trouvé' });
-    if (appointment.paymentStatus !== 'pending') {
+    if (appointment.paymentStatus === 'paid') {
       return res.status(400).json({ error: 'Ce rendez-vous a déjà été payé' });
     }
     const receiptNumber = await generateReceiptNumber();
@@ -640,5 +775,7 @@ export {
   markAsPaidAndCreateTicket,
   getAvailableSlots,
   rescheduleAppointment,
-  payOnlineAppointment
+  payOnlineAppointment,
+  confirmOnlinePayment,
+  rejectOnlinePayment
 };

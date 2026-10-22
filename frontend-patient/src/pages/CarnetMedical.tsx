@@ -204,9 +204,17 @@ export default function CarnetMedical() {
 
                   <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                      isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      isPaid 
+                        ? 'bg-emerald-100 text-emerald-800' 
+                        : apt.paymentStatus === 'pending_confirmation'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                        : 'bg-slate-100 text-slate-700'
                     }`}>
-                      {isPaid ? 'Payé' : 'Paiement en attente'}
+                      {apt.paymentStatus === 'pending_confirmation' 
+                        ? 'En attente caisse' 
+                        : isPaid 
+                        ? 'Payé' 
+                        : 'Paiement en attente'}
                     </span>
 
                     <span className={`text-xs font-bold px-3 py-1 rounded-full ${
