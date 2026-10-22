@@ -238,9 +238,23 @@ export const getSaleById = async (req: Request, res: Response) => {
 
 export const getPrescriptionByQrCode = async (req: Request, res: Response) => {
   try {
-    const qrCode = req.params.qrCode as string;
-    const prescription = await prisma.prescription.findUnique({
-      where: { qrCode },
+    const rawParam = String(req.params.qrCode || '').trim();
+    if (!rawParam) {
+      return res.status(400).json({ error: "Code d'ordonnance manquant" });
+    }
+
+    // Si une URL complète a été scannée (ex: http://.../api/.../qr/ABC123), extraire le code final
+    const cleanCode = rawParam.includes('/qr/') ? rawParam.split('/qr/').pop()!.split('?')[0].trim() : rawParam;
+
+    const prescription = await prisma.prescription.findFirst({
+      where: {
+        OR: [
+          { qrCode: cleanCode },
+          { id: cleanCode },
+          { qrCode: rawParam },
+          { id: rawParam }
+        ]
+      },
       include: {
         consultation: {
           include: {
@@ -255,11 +269,11 @@ export const getPrescriptionByQrCode = async (req: Request, res: Response) => {
     });
 
     if (!prescription) {
-      return res.status(404).json({ error: 'Ordonnance introuvable' });
+      return res.status(404).json({ error: 'Ordonnance introuvable. Veuillez vérifier le code ou scanner à nouveau.' });
     }
 
     if (prescription.type !== 'medication') {
-      return res.status(400).json({ error: "Ce QR code correspond à des analyses, pas à une pharmacie." });
+      return res.status(400).json({ error: "Ce QR code correspond à des examens de laboratoire, pas à une ordonnance de pharmacie." });
     }
 
     res.json(prescription);

@@ -11,8 +11,8 @@ export default function LoginPharmacien() {
     e.preventDefault();
     try {
       const res = await api.post('/auth/login', { email, password });
-      if (res.data.user.role !== 'PHARMACIEN') {
-        setError('Accès refusé. Réservé aux pharmaciens.');
+      if (res.data.user.role !== 'PHARMACIEN' && res.data.user.role !== 'ADMIN') {
+        setError('Accès refusé. Réservé au personnel de pharmacie.');
         return;
       }
       localStorage.setItem('pharmacienToken', res.data.token);

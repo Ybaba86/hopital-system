@@ -178,10 +178,20 @@ export const addPrescription = async (req: Request, res: Response) => {
 
 // Récupérer une prescription par son QR code (pour le patient/pharmacie)
 export const getPrescriptionByQr = async (req: Request, res: Response) => {
-  const qrCode = req.params.qrCode as string;
-  if (!qrCode) return res.status(400).json({ error: 'QR code manquant' });
-  const prescription = await prisma.prescription.findUnique({
-    where: { qrCode },
+  const rawParam = String(req.params.qrCode || '').trim();
+  if (!rawParam) return res.status(400).json({ error: 'QR code manquant' });
+
+  const cleanCode = rawParam.includes('/qr/') ? rawParam.split('/qr/').pop()!.split('?')[0].trim() : rawParam;
+
+  const prescription = await prisma.prescription.findFirst({
+    where: {
+      OR: [
+        { qrCode: cleanCode },
+        { id: cleanCode },
+        { qrCode: rawParam },
+        { id: rawParam }
+      ]
+    },
     include: { consultation: { include: { patient: true, doctor: true } } },
   });
   if (!prescription) return res.status(404).json({ error: 'Prescription non trouvée' });

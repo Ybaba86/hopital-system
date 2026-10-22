@@ -85,7 +85,15 @@ export default function ScannerOrdonnance() {
 
   const handleSearchPrescription = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!qrCode.trim()) return;
+    let cleanCode = qrCode.trim();
+    if (!cleanCode) return;
+
+    // Si le scanner a lu une URL complète du type http://.../qr/CODE ou http://.../prescription/CODE
+    if (cleanCode.includes('/qr/')) {
+      cleanCode = cleanCode.split('/qr/').pop()?.split('?')[0].trim() || cleanCode;
+    } else if (cleanCode.includes('/')) {
+      cleanCode = cleanCode.split('/').pop()?.split('?')[0].trim() || cleanCode;
+    }
 
     setLoading(true);
     setError('');
@@ -94,10 +102,14 @@ export default function ScannerOrdonnance() {
     setLastCompletedSale(null);
 
     try {
-      const res = await api.get(`/sales/prescription/qr/${qrCode.trim()}`);
+      const res = await api.get(`/sales/prescription/qr/${encodeURIComponent(cleanCode)}`);
       setPrescription(res.data);
     } catch (err: any) {
-      setError(err.response?.data?.error || "Erreur lors de la recherche de l'ordonnance");
+      if (err.response?.status === 401) {
+        setError("Erreur d'authentification (Token expiré ou invalide). Veuillez vous déconnecter et vous reconnecter avec votre compte pharmacie.");
+      } else {
+        setError(err.response?.data?.error || "Erreur lors de la recherche de l'ordonnance");
+      }
     } finally {
       setLoading(false);
     }
@@ -357,7 +369,7 @@ export default function ScannerOrdonnance() {
                 type="text" 
                 value={qrCode}
                 onChange={(e) => setQrCode(e.target.value)}
-                placeholder="Exemple: ORD-20261020-001 ou scannez le code-barres..." 
+                placeholder="Scannez le code-barres / QR code ou collez l'ID de l'ordonnance..." 
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono text-base font-bold text-slate-800"
               />
             </div>
