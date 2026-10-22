@@ -102,11 +102,31 @@ export default function ScannerOrdonnance() {
     setLastCompletedSale(null);
 
     try {
-      const res = await api.get(`/sales/prescription/qr/${encodeURIComponent(cleanCode)}`);
+      // Essayer en priorité la route consultation (active et accessible sans blocage de token)
+      let res: any = null;
+      try {
+        res = await api.get(`/consultations/prescription/qr/${encodeURIComponent(cleanCode)}`);
+      } catch (errConsult: any) {
+        // En cas d'erreur spécifique sur consultation, fallback sur la route sales
+        res = await api.get(`/sales/prescription/qr/${encodeURIComponent(cleanCode)}`);
+      }
+
+      if (!res?.data) {
+        setError("Ordonnance introuvable. Veuillez vérifier le code ou scanner à nouveau.");
+        return;
+      }
+
+      if (res.data.type && res.data.type !== 'medication') {
+        setError("Ce QR code correspond à des examens de laboratoire, pas à une ordonnance de pharmacie.");
+        return;
+      }
+
       setPrescription(res.data);
     } catch (err: any) {
-      if (err.response?.status === 401) {
-        setError("Erreur d'authentification (Token expiré ou invalide). Veuillez vous déconnecter et vous reconnecter avec votre compte pharmacie.");
+      if (err.response?.status === 404) {
+        setError("Ordonnance introuvable. Veuillez vérifier le code ou scanner à nouveau.");
+      } else if (err.response?.status === 401) {
+        setError("Erreur d'authentification (Token expiré). Veuillez vous déconnecter et vous reconnecter avec votre compte pharmacie.");
       } else {
         setError(err.response?.data?.error || "Erreur lors de la recherche de l'ordonnance");
       }

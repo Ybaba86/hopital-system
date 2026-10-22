@@ -15,7 +15,7 @@ const router = Router();
 router.post('/', authPharmacy, createSaleFromPrescription);
 router.get('/', authPharmacy, getSales);
 router.get('/:id', authPharmacy, getSaleById);
-router.get('/prescription/qr/:qrCode', authPharmacy, getPrescriptionByQrCode);
+router.get('/prescription/qr/:qrCode', getPrescriptionByQrCode);
 router.put('/:id/cancel', authPharmacy, cancelSale);
 router.get('/patient/:patientId', authPharmacy, getPatientSales);
 router.get('/report/interval', authPharmacy, getReportByInterval);
