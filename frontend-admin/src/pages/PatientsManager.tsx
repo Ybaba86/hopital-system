@@ -17,6 +17,9 @@ export default function PatientsManager() {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    age: '',
+    weight: '',
+    height: '',
     phone: '',
     email: '',
     bloodGroup: '',
@@ -57,6 +60,9 @@ export default function PatientsManager() {
     setFormData({
       firstName: patient.firstName || '',
       lastName: patient.lastName || '',
+      age: patient.age !== undefined && patient.age !== null ? String(patient.age) : '',
+      weight: patient.weight !== undefined && patient.weight !== null ? String(patient.weight) : '',
+      height: patient.height !== undefined && patient.height !== null ? String(patient.height) : '',
       phone: patient.phone || '',
       email: patient.email || '',
       bloodGroup: patient.bloodGroup || '',
@@ -81,9 +87,19 @@ export default function PatientsManager() {
     e.preventDefault();
     if (!selectedPatient) return;
 
+    if (!formData.age || isNaN(Number(formData.age)) || Number(formData.age) < 0) {
+      toast.error("L'âge du patient est obligatoire.");
+      return;
+    }
+
     try {
       // Nettoyer les données (ne pas envoyer le mdp s'il est vide)
-      const payload: any = { ...formData };
+      const payload: any = { 
+        ...formData,
+        age: Number(formData.age),
+        weight: formData.weight ? parseFloat(formData.weight) : null,
+        height: formData.height ? parseFloat(formData.height) : null,
+      };
       if (!payload.password.trim()) {
         delete payload.password;
       }
@@ -146,8 +162,21 @@ export default function PatientsManager() {
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="p-4 pl-6 font-mono text-sm text-slate-500">{p.uniqueNumber}</td>
                     <td className="p-4">
-                      <p className="font-bold text-slate-800">{p.firstName} {p.lastName}</p>
-                      <p className="text-xs text-slate-500">{p.email || 'Pas d\'email'}</p>
+                      <p className="font-bold text-slate-800 flex items-center gap-2">
+                        <span>{p.firstName} {p.lastName}</span>
+                        {p.age ? (
+                          <span className="text-[11px] font-black bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                            {p.age} ans
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-slate-400 italic">Âge N/R</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {p.email || 'Pas d\'email'}
+                        {p.weight ? ` • ${p.weight} kg` : ''}
+                        {p.height ? ` • ${p.height} cm` : ''}
+                      </p>
                     </td>
                     <td className="p-4 text-slate-600">{p.phone || 'Non renseigné'}</td>
                     <td className="p-4">
@@ -226,6 +255,47 @@ export default function PatientsManager() {
                     <option value="O+">O+</option>
                     <option value="O-">O-</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2">
+                    Âge (Obligatoire) <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    max="130" 
+                    required 
+                    placeholder="Ex: 35"
+                    value={formData.age} 
+                    onChange={e => setFormData({...formData, age: e.target.value})} 
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-bold" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2">Poids (kg - Optionnel)</label>
+                  <input 
+                    type="number" 
+                    step="0.1" 
+                    min="1" 
+                    max="350" 
+                    placeholder="Ex: 72"
+                    value={formData.weight} 
+                    onChange={e => setFormData({...formData, weight: e.target.value})} 
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2">Taille (cm - Optionnelle)</label>
+                  <input 
+                    type="number" 
+                    step="1" 
+                    min="30" 
+                    max="250" 
+                    placeholder="Ex: 175"
+                    value={formData.height} 
+                    onChange={e => setFormData({...formData, height: e.target.value})} 
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500" 
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold mb-2">Antécédent Familial</label>

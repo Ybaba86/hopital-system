@@ -19,7 +19,27 @@ async function generateUniqueNumber(): Promise<string> {
 
 export const createPatient = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, birthDate, phone, email, password, bloodGroup, allergies, medicalHistory, familyHistory, insurance, hospitalId } = req.body;
+    const { 
+      firstName, 
+      lastName, 
+      age,
+      weight,
+      height,
+      birthDate, 
+      phone, 
+      email, 
+      password, 
+      bloodGroup, 
+      allergies, 
+      medicalHistory, 
+      familyHistory, 
+      insurance, 
+      hospitalId 
+    } = req.body;
+
+    if (age === undefined || age === null || age === '' || isNaN(Number(age))) {
+      return res.status(400).json({ error: "L'âge du patient est obligatoire." });
+    }
 
     const uniqueNumber = await generateUniqueNumber();
     const hashedPassword = password ? await bcryptjs.hash(password, 10) : null;
@@ -30,6 +50,9 @@ export const createPatient = async (req: Request, res: Response) => {
         uniqueNumber,
         firstName,
         lastName,
+        age: Number(age),
+        weight: weight !== undefined && weight !== null && weight !== '' ? parseFloat(weight) : null,
+        height: height !== undefined && height !== null && height !== '' ? parseFloat(height) : null,
         birthDate: birthDate ? new Date(birthDate) : null,
         phone,
         email,
@@ -78,20 +101,39 @@ export const updatePatient = async (req: Request, res: Response) => {
   const id = req.params.id as string;
   if (!id) return res.status(400).json({ error: 'ID manquant' });
 
-  const { firstName, lastName, birthDate, phone, email, password, bloodGroup, allergies, medicalHistory, familyHistory, insurance, hospitalId } = req.body;
+  const { 
+    firstName, 
+    lastName, 
+    age,
+    weight,
+    height,
+    birthDate, 
+    phone, 
+    email, 
+    password, 
+    bloodGroup, 
+    allergies, 
+    medicalHistory, 
+    familyHistory, 
+    insurance, 
+    hospitalId 
+  } = req.body;
 
   try {
     const dataToUpdate: any = {
-      firstName,
-      lastName,
-      birthDate: birthDate ? new Date(birthDate) : null,
-      phone,
-      email,
-      bloodGroup,
-      allergies,
-      medicalHistory,
-      familyHistory,
-      insurance,
+      ...(firstName && { firstName }),
+      ...(lastName && { lastName }),
+      ...(age !== undefined && age !== null && age !== '' && { age: Number(age) }),
+      ...(weight !== undefined && { weight: weight !== null && weight !== '' ? parseFloat(weight) : null }),
+      ...(height !== undefined && { height: height !== null && height !== '' ? parseFloat(height) : null }),
+      ...(birthDate !== undefined && { birthDate: birthDate ? new Date(birthDate) : null }),
+      ...(phone !== undefined && { phone }),
+      ...(email !== undefined && { email }),
+      ...(bloodGroup !== undefined && { bloodGroup }),
+      ...(allergies !== undefined && { allergies }),
+      ...(medicalHistory !== undefined && { medicalHistory }),
+      ...(familyHistory !== undefined && { familyHistory }),
+      ...(insurance !== undefined && { insurance }),
       ...(hospitalId && { hospitalId }),
     };
 

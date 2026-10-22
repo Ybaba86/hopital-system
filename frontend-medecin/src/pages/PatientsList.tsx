@@ -44,9 +44,11 @@ export default function PatientsList() {
               >
                 <UserCircle2 size={30} className={selectedPatient?.id === p.id ? 'text-white' : 'text-slate-300'} />
                 <div className="min-w-0">
-                  <p className="font-bold text-sm sm:text-base truncate">{p.firstName} {p.lastName}</p>
+                  <p className="font-bold text-sm sm:text-base truncate">
+                    {p.firstName} {p.lastName} {p.age ? `(${p.age} ans)` : ''}
+                  </p>
                   <p className={`text-xs flex items-center gap-1 ${selectedPatient?.id === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>
-                    <Phone size={12} /> {p.phone}
+                    <Phone size={12} /> {p.phone || 'Non renseigné'}
                   </p>
                 </div>
               </div>
@@ -59,8 +61,19 @@ export default function PatientsList() {
             <div className="space-y-6">
               <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg sm:text-xl font-bold">Dossier de {selectedPatient.firstName} {selectedPatient.lastName}</h3>
-                  <p className="text-slate-500 text-xs sm:text-sm">Sélectionnez une action ci-dessous</p>
+                  <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                    <span>Dossier de {selectedPatient.firstName} {selectedPatient.lastName}</span>
+                    {selectedPatient.age && (
+                      <span className="text-xs font-black bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full">
+                        {selectedPatient.age} ans
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+                    {selectedPatient.phone ? `Tél: ${selectedPatient.phone}` : ''}
+                    {selectedPatient.weight ? ` • Poids: ${selectedPatient.weight} kg` : ''}
+                    {selectedPatient.height ? ` • Taille: ${selectedPatient.height} cm` : ''}
+                  </p>
                 </div>
                 <button
                   onClick={() => setShowDossier(true)}

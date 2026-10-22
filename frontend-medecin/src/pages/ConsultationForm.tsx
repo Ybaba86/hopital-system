@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ClipboardCheck, Pill, TestTube, Send, AlertCircle, Activity, ShieldAlert, CheckSquare } from 'lucide-react';
+import { ClipboardCheck, Pill, TestTube, Send, AlertCircle, Activity, ShieldAlert, CheckSquare, Scale, Ruler } from 'lucide-react';
 import api from '../services/api';
 
 interface ConsultationFormProps {
@@ -31,6 +31,9 @@ export default function ConsultationForm({
   });
 
   const [patientInfo, setPatientInfo] = useState<any>(null);
+  const [patientAge, setPatientAge] = useState<string | number>('');
+  const [patientWeight, setPatientWeight] = useState<string | number>('');
+  const [patientHeight, setPatientHeight] = useState<string | number>('');
   const [checkedAntecedents, setCheckedAntecedents] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -41,7 +44,12 @@ export default function ConsultationForm({
   useEffect(() => {
     if (!patientId) return;
     api.get(`/patients/${patientId}`)
-      .then(res => setPatientInfo(res.data))
+      .then(res => {
+        setPatientInfo(res.data);
+        if (res.data.age !== undefined && res.data.age !== null) setPatientAge(res.data.age);
+        if (res.data.weight !== undefined && res.data.weight !== null) setPatientWeight(res.data.weight);
+        if (res.data.height !== undefined && res.data.height !== null) setPatientHeight(res.data.height);
+      })
       .catch(err => console.error("Erreur chargement patient:", err));
   }, [patientId]);
 
@@ -78,6 +86,7 @@ export default function ConsultationForm({
     return (
       formData.symptoms.trim().length >= 5 &&
       formData.diagnosis.trim() !== '' &&
+      checkedAntecedents === true &&
       Object.keys(errors).length === 0
     );
   };
@@ -87,6 +96,10 @@ export default function ConsultationForm({
     
     // Validation finale
     if (!isFormValid()) {
+      if (!checkedAntecedents) {
+        setServerError("Veuillez obligatoirement attester avoir vérifié les antécédents et contre-indications du patient.");
+        return;
+      }
       setErrors({
         symptoms: formData.symptoms.trim().length < 5 ? 'Renseignements cliniques / motifs requis' : '',
         diagnosis: formData.diagnosis.trim() === '' ? 'Le diagnostic est obligatoire' : '',
@@ -111,6 +124,19 @@ export default function ConsultationForm({
       setServerError("Données de session invalides.");
       setLoading(false);
       return;
+    }
+
+    // Mise à jour optionnelle des mensurations du patient si renseignées
+    if (patientAge || patientWeight || patientHeight) {
+      try {
+        await api.put(`/patients/${patientId}`, {
+          ...(patientAge && { age: Number(patientAge) }),
+          weight: patientWeight ? parseFloat(String(patientWeight)) : null,
+          height: patientHeight ? parseFloat(String(patientHeight)) : null,
+        });
+      } catch (vitalErr) {
+        console.warn("Mise à jour mensurations patient non bloquante:", vitalErr);
+      }
     }
 
     const payload = {
@@ -167,6 +193,19 @@ export default function ConsultationForm({
       setLoading(false);
     }
   };
+
+  const imcData = (() => {
+    const w = Number(patientWeight);
+    const h = Number(patientHeight);
+    if (!w || !h || h <= 0) return null;
+    const val = (w / ((h / 100) ** 2)).toFixed(1);
+    const num = parseFloat(val);
+    let cat = "Normal";
+    if (num < 18.5) cat = "Maigreur";
+    else if (num >= 25 && num < 30) cat = "Surpoids";
+    else if (num >= 30) cat = "Obésité";
+    return { val, cat };
+  })();
 
   return (
     <div className="bg-white/95 backdrop-blur-3xl rounded-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden border border-white">
@@ -280,7 +319,94 @@ export default function ConsultationForm({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+            {/* Mensurations & Constantes Cliniques (Âge Obligatoire, Poids et Taille Optionnels) */}
+            <div className="p-3.5 bg-slate-50/90 rounded-2xl border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <span>Mensurations Cliniques</span>
+                  <span className="text-[11px] font-semibold text-slate-500 normal-case">(Âge obligatoire pour le dosage)</span>
+                </span>
+                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                  Mise à jour automatique
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-2.5 bg-emerald-50/90 rounded-xl border border-emerald-200">
+                  <label className="text-[10px] font-black uppercase text-emerald-800 block mb-1">
+                    Âge (Obligatoire) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="130"
+                      value={patientAge}
+                      onChange={(e) => setPatientAge(e.target.value)}
+                      placeholder="Ex: 34"
+                      className="w-full p-1.5 bg-white border border-emerald-300 rounded-lg font-black text-sm text-emerald-950 outline-none focus:ring-2 focus:ring-emerald-400 shadow-inner"
+                      required
+                    />
+                    <span className="text-xs font-bold text-emerald-800 shrink-0">ans</span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-teal-50/90 rounded-xl border border-teal-200">
+                  <label className="text-[10px] font-black uppercase text-teal-800 block mb-1 flex items-center gap-1">
+                    <Scale size={11} /> Poids (Optionnel)
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="1"
+                      max="350"
+                      value={patientWeight}
+                      onChange={(e) => setPatientWeight(e.target.value)}
+                      placeholder="Ex: 72"
+                      className="w-full p-1.5 bg-white border border-teal-300 rounded-lg font-black text-sm text-teal-950 outline-none focus:ring-2 focus:ring-teal-400 shadow-inner"
+                    />
+                    <span className="text-xs font-bold text-teal-800 shrink-0">kg</span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-cyan-50/90 rounded-xl border border-cyan-200">
+                  <label className="text-[10px] font-black uppercase text-cyan-800 block mb-1 flex items-center gap-1">
+                    <Ruler size={11} /> Taille (Optionnelle)
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="1"
+                      min="30"
+                      max="250"
+                      value={patientHeight}
+                      onChange={(e) => setPatientHeight(e.target.value)}
+                      placeholder="Ex: 175"
+                      className="w-full p-1.5 bg-white border border-cyan-300 rounded-lg font-black text-sm text-cyan-950 outline-none focus:ring-2 focus:ring-cyan-400 shadow-inner"
+                    />
+                    <span className="text-xs font-bold text-cyan-800 shrink-0">cm</span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-indigo-50/90 rounded-xl border border-indigo-200 flex flex-col justify-center">
+                  <span className="text-[10px] font-black uppercase text-indigo-800 block mb-0.5">
+                    IMC Calculé
+                  </span>
+                  {imcData ? (
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-black text-indigo-950">{imcData.val}</span>
+                      <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-200/80 text-indigo-900">
+                        {imcData.cat}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] font-medium text-slate-400 italic">Poids & taille requis</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
               <div className="p-3 bg-red-50/80 rounded-xl border border-red-200">
                 <p className="text-[10px] font-black uppercase text-red-600 mb-0.5">Groupe Sanguin</p>
                 <p className="text-sm font-black text-red-800">{patientInfo?.bloodGroup || 'Non renseigné'}</p>
@@ -313,7 +439,7 @@ export default function ConsultationForm({
                 className="w-5 h-5 accent-amber-600 rounded cursor-pointer"
               />
               <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                <CheckSquare size={16} className="text-amber-700" />
+                <CheckSquare size={16} className="text-amber-700 shrink-0" />
                 J'atteste avoir vérifié les antécédents et contre-indications du patient pour cette prescription.
               </span>
             </label>
@@ -381,23 +507,31 @@ export default function ConsultationForm({
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading || !isFormValid()}
-          className="w-full bg-slate-900 hover:bg-indigo-600 disabled:bg-slate-200 disabled:text-slate-400 text-white py-6 rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all shadow-xl hover:shadow-indigo-500/30 active:scale-[0.98]"
-        >
-          {loading ? (
-            <>
-              <Activity className="animate-spin" size={28} />
-              Enregistrement en cours...
-            </>
-          ) : (
-            <>
-              <Send size={28} />
-              {consultationId ? 'Enregistrer les modifications' : 'Terminer la consultation'}
-            </>
+        <div className="space-y-3">
+          <button
+            type="submit"
+            disabled={loading || !isFormValid()}
+            className="w-full bg-slate-900 hover:bg-indigo-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white py-6 rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all shadow-xl hover:shadow-indigo-500/30 active:scale-[0.98]"
+          >
+            {loading ? (
+              <>
+                <Activity className="animate-spin" size={28} />
+                Enregistrement en cours...
+              </>
+            ) : (
+              <>
+                <Send size={28} />
+                {consultationId ? 'Enregistrer les modifications' : 'Terminer la consultation'}
+              </>
+            )}
+          </button>
+          {!checkedAntecedents && (
+            <p className="text-xs sm:text-sm text-amber-900 font-bold text-center bg-amber-50 py-3 px-4 rounded-2xl border-2 border-amber-300 shadow-sm animate-pulse flex items-center justify-center gap-2">
+              <ShieldAlert size={18} className="text-amber-700 shrink-0" />
+              <span>Veuillez cocher l'attestation : <em>« J'atteste avoir vérifié les antécédents et contre-indications du patient pour cette prescription »</em> pour débloquer le bouton Terminer.</span>
+            </p>
           )}
-        </button>
+        </div>
       </form>
     </div>
   );

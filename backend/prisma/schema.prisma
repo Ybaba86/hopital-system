@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Hospital {
@@ -73,6 +74,9 @@ model Patient {
   uniqueNumber     String            @unique
   firstName        String
   lastName         String
+  age              Int?
+  weight           Float?
+  height           Float?
   birthDate        DateTime?
   phone            String?
   email            String?

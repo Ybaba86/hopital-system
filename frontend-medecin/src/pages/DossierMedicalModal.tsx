@@ -131,20 +131,29 @@ export default function DossierMedicalModal({ patientId, patientName, ticketId, 
                   <p className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-3 flex items-center gap-2">
                     <AlertCircle size={16} /> Profil Clinique & Antécédents
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-xl border border-white/10">
+                      <span className="text-xs font-bold text-indigo-200 block mb-1">Âge & Mensurations</span>
+                      <span className="text-lg font-black text-white block">
+                        {patientDetails.age ? `${patientDetails.age} ans` : 'Âge N/R'}
+                      </span>
+                      <span className="text-[11px] font-semibold text-indigo-200">
+                        {patientDetails.weight ? `${patientDetails.weight} kg` : '--'} • {patientDetails.height ? `${patientDetails.height} cm` : '--'}
+                      </span>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-xl border border-white/10">
                       <span className="text-xs font-bold text-indigo-200 block mb-1">Groupe Sanguin</span>
                       <span className="text-xl font-black text-white">{patientDetails.bloodGroup || 'Non renseigné'}</span>
                     </div>
-                    <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10">
+                    <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-xl border border-white/10">
                       <span className="text-xs font-bold text-red-300 block mb-1">Allergies Connues</span>
                       <span className="text-sm font-bold text-white">{patientDetails.allergies || 'Aucune allergie signalée'}</span>
                     </div>
-                    <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10">
+                    <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-xl border border-white/10">
                       <span className="text-xs font-bold text-amber-300 block mb-1">Antécédents Personnels</span>
                       <span className="text-sm font-medium text-white">{patientDetails.medicalHistory || 'Aucun'}</span>
                     </div>
-                    <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10">
+                    <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-xl border border-white/10">
                       <span className="text-xs font-bold text-emerald-300 block mb-1">Antécédent Familial</span>
                       <span className="text-sm font-medium text-white">{patientDetails.familyHistory || 'Aucun'}</span>
                     </div>

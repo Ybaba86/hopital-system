@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Mail, Lock, Phone, Droplet, AlertTriangle, Loader2, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, Phone, Droplet, AlertTriangle, Loader2, ArrowRight, Scale, Ruler, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -8,6 +8,9 @@ export default function RegisterPatient() {
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
+    age: '',
+    weight: '',
+    height: '',
     email: '',
     phone: '',
     password: '',
@@ -39,6 +42,10 @@ export default function RegisterPatient() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.age || isNaN(Number(form.age)) || Number(form.age) < 0) {
+      toast.error("Veuillez renseigner votre âge (obligatoire)");
+      return;
+    }
     if (!form.bloodGroup) {
       toast.error('Veuillez sélectionner votre groupe sanguin');
       return;
@@ -52,6 +59,9 @@ export default function RegisterPatient() {
       await api.post('/patients', {
         firstName: form.firstName,
         lastName: form.lastName,
+        age: Number(form.age),
+        weight: form.weight ? parseFloat(form.weight) : undefined,
+        height: form.height ? parseFloat(form.height) : undefined,
         email: form.email,
         phone: form.phone,
         password: form.password,
@@ -126,6 +136,60 @@ export default function RegisterPatient() {
                   <Lock size={20} />
                 </div>
                 <input type="password" name="confirmPassword" placeholder="Confirmer mot de passe" value={form.confirmPassword} onChange={handleChange} className="w-full pl-12 pr-4 py-3 bg-white/50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-700" required />
+              </div>
+            </div>
+
+            {/* Âge (Obligatoire), Poids et Taille (Optionnels) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-emerald-600 group-focus-within:text-emerald-700 transition-colors">
+                  <Calendar size={18} />
+                </div>
+                <input 
+                  type="number" 
+                  min="0"
+                  max="130"
+                  name="age" 
+                  placeholder="Âge (ans) *" 
+                  value={form.age} 
+                  onChange={handleChange} 
+                  className="w-full pl-10 pr-3 py-3 bg-white/50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-slate-700 text-xs sm:text-sm font-semibold placeholder:text-xs placeholder:text-slate-400 placeholder:font-normal" 
+                  required 
+                />
+              </div>
+
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-teal-600 group-focus-within:text-teal-700 transition-colors">
+                  <Scale size={18} />
+                </div>
+                <input 
+                  type="number" 
+                  step="0.1"
+                  min="1"
+                  max="350"
+                  name="weight" 
+                  placeholder="Poids (kg - optionnel)" 
+                  value={form.weight} 
+                  onChange={handleChange} 
+                  className="w-full pl-10 pr-3 py-3 bg-white/50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-teal-500/20 focus:border-teal-500 transition-all outline-none text-slate-700 text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 placeholder:font-normal" 
+                />
+              </div>
+
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-cyan-600 group-focus-within:text-cyan-700 transition-colors">
+                  <Ruler size={18} />
+                </div>
+                <input 
+                  type="number" 
+                  step="1"
+                  min="30"
+                  max="250"
+                  name="height" 
+                  placeholder="Taille (cm - optionnel)" 
+                  value={form.height} 
+                  onChange={handleChange} 
+                  className="w-full pl-10 pr-3 py-3 bg-white/50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none text-slate-700 text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 placeholder:font-normal" 
+                />
               </div>
             </div>
 
