@@ -21,8 +21,26 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    const user = await prisma.user.findUnique({ where: { email }, include: { hospital: true, pharmacy: true } });
-    if (!user) return res.status(401).json({ error: 'Identifiants invalides' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email et mot de passe requis' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    
+    // Recherche de l'utilisateur (insensible à la casse)
+    const user = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: cleanEmail,
+          mode: 'insensitive',
+        },
+      },
+      include: { hospital: true, pharmacy: true },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: 'Identifiants invalides (aucun compte avec cet email)' });
+    }
     
     let valid = false;
     
@@ -39,13 +57,17 @@ export const login = async (req: Request, res: Response) => {
       valid = await bcrypt.compare(password, user.password);
     }
 
-    if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
+    if (!valid) {
+      return res.status(401).json({ error: 'Mot de passe incorrect' });
+    }
 
+    const secret = process.env.JWT_SECRET || 'uneCleSecreteTresLonguePourJWT_NiangHospital2026';
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, hospitalId: user.hospitalId, pharmacyId: user.pharmacyId },
-      process.env.JWT_SECRET!,
+      secret,
       { expiresIn: '7d' }
     );
+
     res.json({ 
       token, 
       user: { 
@@ -59,8 +81,12 @@ export const login = async (req: Request, res: Response) => {
         pharmacyName: user.pharmacy?.name
       } 
     });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
+  } catch (error: any) {
+    console.error('Erreur dans authController login:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur',
+      message: error?.message || 'Erreur interne de connexion'
+    });
   }
 };
 

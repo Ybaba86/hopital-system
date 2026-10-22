@@ -38,7 +38,7 @@ export default function LoginAdmin() {
       toast.success('Connexion réussie !');
       navigate('/admin/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Identifiants incorrects');
+      setError(err.response?.data?.message || err.response?.data?.error || 'Identifiants incorrects');
     } finally {
       setLoading(false);
     }
