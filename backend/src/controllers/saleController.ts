@@ -42,6 +42,21 @@ export const createSaleFromPrescription = async (req: Request, res: Response) =>
       if (prescription.status === 'delivered') {
         return res.status(400).json({ error: 'Cette ordonnance a déjà été délivrée' });
       }
+
+      // Vérifier s'il existe déjà une vente associée à cette ordonnance
+      const existingSale = await prisma.sale.findUnique({
+        where: { prescriptionId },
+      });
+      if (existingSale) {
+        if (existingSale.status === 'completed') {
+          return res.status(400).json({ error: 'Cette ordonnance a déjà été validée et délivrée' });
+        }
+        // Si l'ancienne vente est annulée, libérer la contrainte unique
+        await prisma.sale.update({
+          where: { id: existingSale.id },
+          data: { prescriptionId: null },
+        });
+      }
     } else {
       isOverTheCounter = true;
     }
@@ -82,7 +97,7 @@ export const createSaleFromPrescription = async (req: Request, res: Response) =>
     const totalAmount = Math.max(0, subtotal - discount);
     const receiptNumber = await generateReceiptNumber(prisma);
 
-    // 3. Créer la vente et les items (transaction)
+    // 3. Créer la vente et les items (transaction avec timeout étendu pour le cloud)
     const sale = await prisma.$transaction(async (tx) => {
       const newSale = await tx.sale.create({
         data: {
@@ -132,6 +147,9 @@ export const createSaleFromPrescription = async (req: Request, res: Response) =>
       });
 
       return { ...newSale, payment };
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
 
     // 6. Générer une facture détaillée (JSON)
@@ -166,9 +184,9 @@ export const createSaleFromPrescription = async (req: Request, res: Response) =>
     };
 
     res.status(201).json({ sale, invoice });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erreur lors de la vente' });
+  } catch (error: any) {
+    console.error('Erreur createSaleFromPrescription:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors de la vente' });
   }
 };
 
@@ -297,10 +315,13 @@ export const cancelSale = async (req: Request, res: Response) => {
     if (sale.status === 'cancelled') return res.status(400).json({ error: 'Vente déjà annulée' });
 
     await prisma.$transaction(async (tx) => {
-      // 1. Annuler la vente
+      // 1. Annuler la vente et détacher le prescriptionId
       await tx.sale.update({
         where: { id },
-        data: { status: 'cancelled' }
+        data: { 
+          status: 'cancelled',
+          prescriptionId: null
+        }
       });
 
       // 2. Recréditer les stocks
@@ -329,6 +350,9 @@ export const cancelSale = async (req: Request, res: Response) => {
           data: { status: 'cancelled' }
         });
       }
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
 
     res.json({ message: 'Vente annulée avec succès et stocks recrédités' });
